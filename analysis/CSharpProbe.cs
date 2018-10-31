@@ -9,6 +9,7 @@ using System.Runtime.Serialization.Json;
 using System.Text;
 using CommandLine;
 using System.Net;
+using System.Reflection;
 
 namespace CSharpProbe
 {
@@ -56,48 +57,58 @@ namespace CSharpProbe
 
         private static async Task Run(Options opts)
         {
-            Console.WriteLine("Loading Solution");
-
-            var workspace = MSBuildWorkspace.Create();
-            workspace.WorkspaceFailed += (s, e) =>
+            Console.WriteLine("TEST");
+            try
             {
-                Console.WriteLine($"Workspace failed with: {e.Diagnostic}");
-            };
-            var solution = await workspace.OpenSolutionAsync(opts.Path);
-            var projects = solution.Projects;
+                Console.WriteLine("Loading Solution");
 
-            Console.WriteLine("Loading metrics, wait it may take a while.");
-            var metricsCalculator = new CodeMetricsCalculator();
-            var calculateTasks = projects.Select(p => metricsCalculator.Calculate(p, solution));
-            var metrics = (await Task.WhenAll(calculateTasks)).SelectMany(nm => nm);
-
-            var currentAmount = 0;
-            var maintainability = 0.0;
-            var modules = new List<ResultModule>();
-            var loc = 0;
-
-            foreach (var metric in metrics)
-            {
-                currentAmount += 1;
-                maintainability = maintainability + (metric.MaintainabilityIndex - maintainability) / (currentAmount + 1.0);
-                loc += metric.LinesOfCode;
-
-                if (!opts.MinMode)
+                var workspace = MSBuildWorkspace.Create();
+                workspace.WorkspaceFailed += (s, e) =>
                 {
-                    modules.Add(new ResultModule(metric.Name, metric.MaintainabilityIndex));
+                    Console.WriteLine($"Workspace failed with: {e.Diagnostic}");
+                };
+                var solution = await workspace.OpenSolutionAsync(opts.Path);
+                var projects = solution.Projects;
+
+                Console.WriteLine("Loading metrics, wait it may take a while.");
+                var metricsCalculator = new CodeMetricsCalculator();
+                var calculateTasks = projects.Select(p => metricsCalculator.Calculate(p, solution));
+                var metrics = (await Task.WhenAll(calculateTasks)).SelectMany(nm => nm);
+
+                var currentAmount = 0;
+                var maintainability = 0.0;
+                var modules = new List<ResultModule>();
+                var loc = 0;
+
+                foreach (var metric in metrics)
+                {
+                    currentAmount += 1;
+                    maintainability = maintainability + (metric.MaintainabilityIndex - maintainability) / (currentAmount + 1.0);
+                    loc += metric.LinesOfCode;
+
+                    if (!opts.MinMode)
+                    {
+                        modules.Add(new ResultModule(metric.Name, metric.MaintainabilityIndex));
+                    }
+                }
+
+                var result = new Result(
+                    maintainability,
+                    opts.MinMode ? 0 : loc,
+                    0,
+                    opts.Revision,
+                    opts.RevisionDate,
+                    modules
+                );
+
+                UploadResult(opts, result);
+            } catch (ReflectionTypeLoadException ex)
+            {
+                foreach (var item in ex.LoaderExceptions)
+                {
+                    Console.WriteLine(item.Message);
                 }
             }
-
-            var result = new Result(
-                maintainability,
-                opts.MinMode ? 0 : loc,
-                0,
-                opts.Revision,
-                opts.RevisionDate,
-                modules
-            );
-
-            UploadResult(opts, result);
         }
 
         private static void UploadResult(Options opts, Result result)

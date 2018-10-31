@@ -15,7 +15,7 @@ foreach ($commit in $(git rev-list master | select -first 100))
 	$rev = git rev-parse HEAD
 	$comDate = git log -1 --date='format-local:%Y%m%dT%H%M%SZ' --format=%cd
 
-	$executable = $oldPath + "\bin\Release\CSharpProbe.exe -p $solution -H $mhost -P 80 -T $token -N $probe -R $rev -D $comDate"
+	$executable = $oldPath + "\bin\Release\analysis.exe -p $solution -H $mhost -P 80 -T $token -N $probe -R $rev -D $comDate"
 
 	iex $executable
 }
