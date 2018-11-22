@@ -57,7 +57,6 @@ namespace CSharpProbe
 
         private static async Task Run(Options opts)
         {
-            Console.WriteLine("TEST");
             try
             {
                 Console.WriteLine("Loading Solution");
@@ -68,7 +67,7 @@ namespace CSharpProbe
                     Console.WriteLine($"Workspace failed with: {e.Diagnostic}");
                 };
                 var solution = await workspace.OpenSolutionAsync(opts.Path);
-                var projects = solution.Projects;
+                var projects = solution.Projects.Where(p => p.FilePath.EndsWith("csproj"));
 
                 Console.WriteLine("Loading metrics, wait it may take a while.");
                 var metricsCalculator = new CodeMetricsCalculator();
@@ -113,16 +112,8 @@ namespace CSharpProbe
 
         private static void UploadResult(Options opts, Result result)
         {
-            try
+            if (opts.Dry)
             {
-                var url = "http://" + opts.Host + ":" + opts.Port + "/api/probe_infos";
-
-                var httpWebRequest = (HttpWebRequest)WebRequest.Create(url);
-                httpWebRequest.ContentType = "application/json; charset=utf-8";
-                httpWebRequest.Method = "POST";
-                //httpWebRequest.PreAuthenticate = true;
-                httpWebRequest.Headers.Add("Authorization", "Token token=" + opts.Token);
-
                 var ms = new MemoryStream();
 
                 var ser = new DataContractJsonSerializer(typeof(Payload));
@@ -131,21 +122,44 @@ namespace CSharpProbe
                 ms.Close();
                 var serialized = Encoding.UTF8.GetString(json, 0, json.Length);
 
-                using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
-                {
-                    streamWriter.Write(serialized);
-                    streamWriter.Flush();
-                }
-                var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-                using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-                {
-                    var responseText = streamReader.ReadToEnd();
-                    Console.WriteLine(responseText);
-                }
+                System.Console.WriteLine(serialized);
             }
-            catch (WebException ex)
+            else
             {
-                Console.WriteLine(ex.Message);
+                try
+                {
+                    var url = "http://" + opts.Host + ":" + opts.Port + "/api/probe_infos";
+
+                    var httpWebRequest = (HttpWebRequest)WebRequest.Create(url);
+                    httpWebRequest.ContentType = "application/json; charset=utf-8";
+                    httpWebRequest.Method = "POST";
+                    //httpWebRequest.PreAuthenticate = true;
+                    httpWebRequest.Headers.Add("Authorization", "Token token=" + opts.Token);
+
+                    var ms = new MemoryStream();
+
+                    var ser = new DataContractJsonSerializer(typeof(Payload));
+                    ser.WriteObject(ms, new Payload(opts.ProbeID, result));
+                    var json = ms.ToArray();
+                    ms.Close();
+                    var serialized = Encoding.UTF8.GetString(json, 0, json.Length);
+
+                    using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
+                    {
+                        streamWriter.Write(serialized);
+                        streamWriter.Flush();
+                    }
+                    var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
+                    using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+                    {
+                        var responseText = streamReader.ReadToEnd();
+                        Console.WriteLine(responseText);
+                    }
+                }
+                catch (WebException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
     }
