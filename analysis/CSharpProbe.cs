@@ -41,6 +41,9 @@ namespace CSharpProbe
 
         [Option('D', "revision_date", Required = false, HelpText = "CVS revision date")]
         public string RevisionDate { get; set; }
+
+        [Option('I', "project", Required = false, HelpText = "Project to analyze")]
+        public string Project { get; set; }
     }
 
     class CSharpProbe
@@ -67,7 +70,8 @@ namespace CSharpProbe
                     Console.WriteLine($"Workspace failed with: {e.Diagnostic}");
                 };
                 var solution = await workspace.OpenSolutionAsync(opts.Path);
-                var projects = solution.Projects.Where(p => p.FilePath.EndsWith("csproj"));
+                
+                var projects = string.IsNullOrEmpty(opts.Project) ? solution.Projects.Where(p => p.FilePath.EndsWith("csproj")) : solution.Projects.Where(p => p.Name == opts.Project);
 
                 Console.WriteLine("Loading metrics, wait it may take a while.");
                 var metricsCalculator = new CodeMetricsCalculator();
