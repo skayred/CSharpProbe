@@ -10,9 +10,18 @@
 
 $oldPath = (Get-Location).Path
 cd $path
-foreach ($commit in $(git rev-list master | select -first 100))
-{
-    git checkout -f $commit;
+
+$curDate = (Get-Date)
+
+while ($curDate -gt (Get-Date).AddYears(-1)) {
+	$newDate = $curDate.AddDays(-7)
+	$minTimestamp = [int64]($curDate-(get-date "1/1/1970")).TotalSeconds
+	$maxTimestamp = [int64]($newDate-(get-date "1/1/1970")).TotalSeconds
+	$curDate = $curDate.AddDays(-7)
+
+	$commit = git rev-list --max-age=$maxTimestamp --min-age=$minTimestamp --max-count=1 --all
+	
+	git checkout -f $commit;
 	$rev = git rev-parse HEAD
 	$comDate = git log -1 --date='format-local:%Y%m%dT%H%M%SZ' --format=%cd
 
